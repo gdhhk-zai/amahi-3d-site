@@ -63,6 +63,8 @@ jobs:
         run: |
           npm i --no-save playwright@1
           npx playwright install --with-deps chromium
+      - name: Let the new deployment reach the Pages CDN
+        run: sleep 90
       - name: Capture Riyadh on the live site
         env:
           SITE: ${{ needs.deploy.outputs.page_url || format('https://{0}.github.io/{1}/', github.repository_owner, github.event.repository.name) }}

@@ -27,6 +27,9 @@ fs.mkdirSync('checks', { recursive: true })
   page.on('request', (r) => {
     if (r.url().includes('tile.googleapis.com')) tileRequests++
   })
+  // Whether the deployed config carries a key (yes or no only, never the key).
+  const cfg = await (await fetch(`${site}tiles-config.js?t=${Date.now()}`)).text()
+  log.push(`deployed tiles-config.js has a key: ${/googleKey":"[^"]+"/.test(cfg) ? 'yes' : 'no'}`)
   for (const p of points) {
     await page.goto(`${site}?city=riyadh&lite&debug&p=${p}`, { waitUntil: 'load', timeout: 120000 })
     await page.waitForTimeout(45000)
