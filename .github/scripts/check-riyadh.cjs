@@ -13,8 +13,15 @@ fs.mkdirSync('checks', { recursive: true })
   const log = []
   page.on('console', (m) => log.push(`${m.type()}: ${m.text().slice(0, 300)}`))
   page.on('pageerror', (e) => log.push(`pageerror: ${e.message}`))
-  page.on('response', (r) => {
-    if (r.url().includes('tile.googleapis.com') && r.status() >= 400) log.push(`tiles ${r.status()} ${new URL(r.url()).pathname}`)
+  page.on('response', async (r) => {
+    if (r.url().includes('tile.googleapis.com') && r.status() >= 400) {
+      // Google's error text says why a key is refused (API not enabled, referrer, billing).
+      let body = ''
+      try {
+        body = (await r.text()).replace(/\s+/g, ' ').slice(0, 600)
+      } catch {}
+      log.push(`tiles ${r.status()} ${new URL(r.url()).pathname} ${body}`)
+    }
   })
   let tileRequests = 0
   page.on('request', (r) => {
