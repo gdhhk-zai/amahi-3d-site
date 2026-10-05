@@ -1,0 +1,78 @@
+# Publishes the site to GitHub Pages. The Google Map Tiles key lives only in
+# the repository secret GOOGLE_MAPS_KEY: it is written into tiles-config.js
+# of the deployed copy at deploy time and never committed. Browsers that
+# load the site do receive it (Google tiles are fetched by the browser), so
+# keep the key restricted to this site's address and to the Map Tiles API.
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Add the tiles key to the deployed copy
+        env:
+          GOOGLE_MAPS_KEY: ${{ secrets.GOOGLE_MAPS_KEY }}
+        run: |
+          mkdir -p _site
+          rsync -a --exclude .git --exclude .github --exclude README.md ./ _site/
+          if [ -n "$GOOGLE_MAPS_KEY" ]; then
+            node -e 'require("fs").writeFileSync("_site/tiles-config.js", "window.AMAHI_TILES = " + JSON.stringify({ googleKey: process.env.GOOGLE_MAPS_KEY, cesiumToken: "" }) + "\n")'
+            echo "Tiles key set from the repository secret."
+          else
+            echo "::warning::GOOGLE_MAPS_KEY secret is not set; the site runs without the Google city."
+          fi
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4
+
+  # Loads the live site in a browser and records whether Riyadh's tiles
+  # stream. Screenshots and the console log (never the key) go to the
+  # "site-checks" branch.
+  check-riyadh:
+    needs: deploy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install a browser
+        run: |
+          npm i --no-save playwright@1
+          npx playwright install --with-deps chromium
+      - name: Capture Riyadh on the live site
+        env:
+          SITE: ${{ needs.deploy.outputs.page_url || format('https://{0}.github.io/{1}/', github.repository_owner, github.event.repository.name) }}
+        run: node .github/scripts/check-riyadh.cjs
+      - name: Save the results to the site-checks branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin site-checks || true
+          git switch --orphan site-checks-new
+          git rm -rfq --cached . >/dev/null 2>&1 || true
+          find . -mindepth 1 -maxdepth 1 ! -name .git ! -name checks -exec rm -rf {} +
+          git add checks
+          git commit -qm "Riyadh tiles check for ${GITHUB_SHA::7}"
+          git push -f origin HEAD:site-checks
