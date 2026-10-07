@@ -1,10 +1,12 @@
-// Opens the live site straight into Riyadh at a few points of the flight,
-// waits for the tiles to stream, and saves screenshots and console output.
+// Opens the live site straight into each city at a few points of the flight
+// (the wide aerial, the descent, near the street), waits for the tiles to
+// stream, and saves screenshots and console output.
 const { chromium } = require('playwright')
 const fs = require('fs')
 
 const site = process.env.SITE.replace(/\/?$/, '/')
-const points = ['0.5', '0.56', '0.62']
+const cities = ['riyadh', 'jeddah', 'dubai', 'london']
+const points = ['0.45', '0.53', '0.62']
 fs.mkdirSync('checks', { recursive: true })
 
 ;(async () => {
@@ -30,10 +32,12 @@ fs.mkdirSync('checks', { recursive: true })
   // Whether the deployed config carries a key (yes or no only, never the key).
   const cfg = await (await fetch(`${site}tiles-config.js?t=${Date.now()}`)).text()
   log.push(`deployed tiles-config.js has a key: ${/googleKey":"[^"]+"/.test(cfg) ? 'yes' : 'no'}`)
-  for (const p of points) {
-    await page.goto(`${site}?city=riyadh&lite&debug&p=${p}`, { waitUntil: 'load', timeout: 120000 })
-    await page.waitForTimeout(45000)
-    await page.screenshot({ path: `checks/riyadh-p${p}.png`, timeout: 600000 })
+  for (const city of cities) {
+    for (const p of points) {
+      await page.goto(`${site}?city=${city}&lite&debug&p=${p}`, { waitUntil: 'load', timeout: 120000 })
+      await page.waitForTimeout(35000)
+      await page.screenshot({ path: `checks/${city}-p${p}.png`, timeout: 600000 })
+    }
   }
   // Never record the key itself.
   const clean = log.map((l) => l.replace(/key=[A-Za-z0-9_-]+/g, 'key=…'))

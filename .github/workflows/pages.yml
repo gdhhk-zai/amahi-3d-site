@@ -3,6 +3,8 @@
 # of the deployed copy at deploy time and never committed. Browsers that
 # load the site do receive it (Google tiles are fetched by the browser), so
 # keep the key restricted to this site's address and to the Map Tiles API.
+# A Cesium ion token in the secret CESIUM_ION_TOKEN, if set, is used instead:
+# ion serves the same Google tiles (asset 2275207) under Cesium's own account.
 name: Deploy to GitHub Pages
 
 on:
@@ -32,10 +34,14 @@ jobs:
       - name: Add the tiles key to the deployed copy
         env:
           GOOGLE_MAPS_KEY: ${{ secrets.GOOGLE_MAPS_KEY }}
+          CESIUM_ION_TOKEN: ${{ secrets.CESIUM_ION_TOKEN }}
         run: |
           mkdir -p _site
           rsync -a --exclude .git --exclude .github --exclude README.md ./ _site/
-          if [ -n "$GOOGLE_MAPS_KEY" ]; then
+          if [ -n "$CESIUM_ION_TOKEN" ]; then
+            node -e 'require("fs").writeFileSync("_site/tiles-config.js", "window.AMAHI_TILES = " + JSON.stringify({ googleKey: "", cesiumToken: process.env.CESIUM_ION_TOKEN }) + "\n")'
+            echo "Tiles token set from the CESIUM_ION_TOKEN secret."
+          elif [ -n "$GOOGLE_MAPS_KEY" ]; then
             node -e 'require("fs").writeFileSync("_site/tiles-config.js", "window.AMAHI_TILES = " + JSON.stringify({ googleKey: process.env.GOOGLE_MAPS_KEY, cesiumToken: "" }) + "\n")'
             echo "Tiles key set from the repository secret."
           else
@@ -48,10 +54,10 @@ jobs:
       - id: deployment
         uses: actions/deploy-pages@v4
 
-  # Loads the live site in a browser and records whether Riyadh's tiles
+  # Loads the live site in a browser and records whether each city's tiles
   # stream. Screenshots and the console log (never the key) go to the
   # "site-checks" branch.
-  check-riyadh:
+  check-cities:
     needs: deploy
     runs-on: ubuntu-latest
     steps:
@@ -65,10 +71,10 @@ jobs:
           npx playwright install --with-deps chromium
       - name: Let the new deployment reach the Pages CDN
         run: sleep 90
-      - name: Capture Riyadh on the live site
+      - name: Capture the four cities on the live site
         env:
           SITE: ${{ needs.deploy.outputs.page_url || format('https://{0}.github.io/{1}/', github.repository_owner, github.event.repository.name) }}
-        run: node .github/scripts/check-riyadh.cjs
+        run: node .github/scripts/check-cities.cjs
       - name: Save the results to the site-checks branch
         run: |
           git config user.name "github-actions[bot]"
@@ -78,5 +84,5 @@ jobs:
           git rm -rfq --cached . >/dev/null 2>&1 || true
           find . -mindepth 1 -maxdepth 1 ! -name .git ! -name checks -exec rm -rf {} +
           git add checks
-          git commit -qm "Riyadh tiles check for ${GITHUB_SHA::7}"
+          git commit -qm "City tiles check for ${GITHUB_SHA::7}"
           git push -f origin HEAD:site-checks
