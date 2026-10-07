@@ -69,6 +69,10 @@ jobs:
         run: |
           npm i --no-save playwright@1
           npx playwright install --with-deps chromium
+      - name: Ask Google directly why the tiles key is refused
+        env:
+          GOOGLE_MAPS_KEY: ${{ secrets.GOOGLE_MAPS_KEY }}
+        run: bash .github/scripts/diagnose-tiles.sh
       - name: Let the new deployment reach the Pages CDN
         run: sleep 90
       - name: Capture the four cities on the live site
